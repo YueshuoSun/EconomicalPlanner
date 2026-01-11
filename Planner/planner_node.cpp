@@ -43,7 +43,6 @@ class PlannerNode {
         }
         for (int id : agv_ids) {
             std::string topic = "/robot_" + std::to_string(id) + "/trajectory";
-            // 使用 boost::bind 将 AGV 的 ID 绑定到回调函数中
             agv_traj_subscribers_[id] =
                 nh_.subscribe<sandbox_msgs::Trajectory>(topic, 1, boost::bind(&PlannerNode::AgvTrajectoryCallback, this, _1, id));
             ROS_INFO("Subscribing to AGV trajectory topic: %s", topic.c_str());
@@ -89,20 +88,14 @@ class PlannerNode {
         nh_.param("rear_num", rear_num_, -999);
         nh_.param("inner_points_num", inner_points_num_, -999);
 
-        // =====================> START: CRITICAL CRASH FIX <=====================
-        // 在使用参数进行除法运算之前，立即进行合法性检查。
-        // 这是导致概率性崩溃的根源：如果参数未从服务器加载，它将是-999，
-        // 导致 (inner_points_num_ - 1) 变成负数，在转换为size_t后变成巨大正数，
-        // 最终使采样步长 inner_step 变为0，从而引发无限循环和崩溃。
         if (inner_points_num_ <= 1) {
             ROS_FATAL(
                 "Critical parameter error: 'inner_points_num' is %d, but must be > 1 to avoid division by zero. This is likely because "
                 "the parameter was not loaded correctly from the launch/yaml file. Shutting down.",
                 inner_points_num_);
             ros::shutdown();
-            return;    // 立即退出构造函数，防止后续代码执行
+            return;    
         }
-        // =====================> END: CRITICAL CRASH FIX <=====================
         // Map
         nh_.param("map_radius", map_param_.map_radius, -999.0);
         nh_.param("x_first_straight", map_param_.x_first_straight, -999.0);
@@ -111,11 +104,6 @@ class PlannerNode {
         nh_.param("curve_length", map_param_.curve_length, -999.0);
         nh_.param("resolution", map_param_.resolution, -999.0);
 
-        // =====================> START: FINAL CRASH FIX <=====================
-        // 最终修复：验证所有地图参数是否已正确加载。
-        // 根源在于，如果任何一个地图参数加载失败（取默认值-999），
-        // 都会导致后续的地图点数计算错误，从而引发崩溃。
-        // 此前的修复遗漏了对 x_second_straight 的检查。
         if (map_param_.map_radius <= 0.0 || map_param_.x_first_straight <= 0.0 || map_param_.x_second_straight < 0.0 ||
             map_param_.y_straight <= 0.0 || map_param_.curve_length <= 0.0 || map_param_.resolution <= 1e-6) {
             ROS_FATAL("Critical map parameter loading error! One or more map parameters are invalid (<= 0 or < 0).");
@@ -177,7 +165,6 @@ class PlannerNode {
             inner_s += hypot(inner_points.at(i).x() - inner_points.at(i - 1).x(), inner_points.at(i).y() - inner_points.at(i - 1).y());
         }
 
-        // 添加对 inner_s 的检查，防止除以零
         if (std::abs(inner_s) < 1e-6) {
             ROS_FATAL(
                 "Critical map generation error: The calculated length of the inner path ('inner_s') is zero. Cannot proceed. Shutting "
@@ -335,7 +322,6 @@ class PlannerNode {
         original_max_velocity_ = planner_.env()->vehicle.max_velocity;
     }
 
-    // This is a new central function to handle vehicle state updates
     void UpdateVehicleState(const Pose& new_pose) {
         if (has_previous_pose_) {
             double distance_increment = std::hypot(new_pose.x() - previous_pose_.x(), new_pose.y() - previous_pose_.y());
@@ -344,33 +330,28 @@ class PlannerNode {
         previous_pose_ = new_pose;
         has_previous_pose_ = true;
 
-        // Record and draw the historical path
         historical_path_.push_back(new_pose);
     }
 
-    // Centralized, thread-safe function to set the start pose
     void SetStartPose(const Pose& pose) {
-        // Lock the mutex to protect shared data from race conditions
         boost::mutex::scoped_lock lock(pose_mutex_);
 
         current_pose_ = pose;
 
         planner_.set_start_pose(current_pose_);
         auto current_state = TrajectoryPoint(current_pose_);
-        // 设置初始速度为一个小的正值，避免从0开始无法加速
-        current_state.v = 0.05;  // 初始速度 5cm/s
-        current_state.t = 0.0;   // 初始时间戳为0
+        current_state.v = 0.05;  
+        current_state.t = 0.0;   
         planner_.set_current_state(current_state);
 
-        ROS_WARN("[DEBUG-INIT] Initial state set: pos=(%.3f,%.3f,%.3f), v=%.3f, t=%.3f",
-            current_state.x, current_state.y, current_state.theta, current_state.v, current_state.t);
+        // ROS_WARN("[DEBUG-INIT] Initial state set: pos=(%.3f,%.3f,%.3f), v=%.3f, t=%.3f",
+        //     current_state.x, current_state.y, current_state.theta, current_state.v, current_state.t);
 
         common::data::Trajectory ref_line;
         planner_.GenerateRefLine(planner_.env()->reference, current_pose_, ref_line);
         planner_.set_traj_ref(ref_line);
-        current_pose_received_ = true;    // This flag triggers the planner
+        current_pose_received_ = true;    
 
-        // Visualization
         Box2d foot_print = planner_.env()->vehicle.GenerateBox(Pose(planner_.current_state()));
         VisualizationPlot::PlotPolygon(Polygon2d(foot_print), 0.01, Color::Green, 1, "vehicle");
         VisualizationPlot::PlotVehicleHeading(foot_print, Color::Green, 0.01, 1, "vehicle heading");
@@ -390,7 +371,6 @@ class PlannerNode {
             if ((current_pose_received_ && (time_diff >= kMathEpsilon || cycle_count_ == 0))) {
                 ++cycle_count_;
 
-                // 正常规划逻辑
                 if (!use_real_agv_) {
                     UpdateAGVObstaclesAsStatic(evt);
                 }
@@ -404,50 +384,40 @@ class PlannerNode {
                 planner_.env()->vehicle.min_phi = min_steering_;
                 ++planner_.env()->counter;
 
-                // 首先调用状态机更新函数，它会处理所有的状态转换
-                // 注意：急停功能只在实车模式下启用，仿真模式下跳过
                 if (use_real_agv_) {
                     UpdateObstacleAvoidanceState();
                 }
 
-                // 如果处于紧急等待状态，则不进行规划，仅维持停车/等待状态
                 if (use_real_agv_ && avoidance_state_ == EMERGENCY_WAITING) {
                     ROS_INFO_THROTTLE(1.0, "In EMERGENCY_WAITING state. Holding position.");
 
-                    // MODIFICATION: If the vehicle has stopped (v~0) AND the current trajectory is almost finished,
-                    // generate a new stationary trajectory to hold the position.
                     bool trajectory_finished = last_traj_.empty() || (cur_index_ >= static_cast<int>(last_traj_.size()) - 2);
                     if (planner_.current_state().v < 0.01 && trajectory_finished) {
                         GenerateStationaryWaitTrajectory();
                     }
 
-                    // 确保轨迹被标记为“已接收”，以便能够被发送出去
                     if (!last_traj_.empty()) {
                         is_traj_receive_ = true;
                     }
 
-                    // 设置一个较短的下一次规划时间，以便频繁检查状态
                     plan_next_time_ = common::util::GetCurrentTimestamp() + 0.05;
-                    return;    // 提前返回，跳过下面的正常规划逻辑
+                    return;    
                 }
 
                 if (planner_.RollingTimePlan(1, last_traj_, planned_result_)) {
-                    // 规划成功，重置失败计数
                     consecutive_planning_failures_ = 0;
 
-                    // 调试日志：打印规划结果的时间戳范围和速度
                     if (!planned_result_.empty()) {
-                        ROS_INFO("[DEBUG-PLAN] Planning SUCCESS! traj_size=%zu, t_range=[%.3f, %.3f], v_range=[%.3f, %.3f]",
-                            planned_result_.size(),
-                            planned_result_.front().t, planned_result_.back().t,
-                            planned_result_.front().v, planned_result_.back().v);
+                        // ROS_INFO("[DEBUG-PLAN] Planning SUCCESS! traj_size=%zu, t_range=[%.3f, %.3f], v_range=[%.3f, %.3f]",
+                        //     planned_result_.size(),
+                        //     planned_result_.front().t, planned_result_.back().t,
+                        //     planned_result_.front().v, planned_result_.back().v);
                     }
 
                     if (cycle_count_ == 1) {
                         last_traj_ = planned_result_;
-                        // 第一次规划成功，重置仿真时间基准
                         is_first_send_current_time_ = true;
-                        ROS_WARN("[DEBUG] First planning done, reset simulation time base");
+                        // ROS_WARN("[DEBUG] First planning done, reset simulation time base");
                     } else {
                         if (!FindTrajOnCurrentIndex(cur_index_) || cur_index_ < 0 ||
                             cur_index_ >= static_cast<int>(planned_result_.size())) {
@@ -480,13 +450,8 @@ class PlannerNode {
                     planner_.env()->num_of_continuous_failure = 0;
 
                     ROS_DEBUG("Planning successful, consecutive failures reset to 0");
-                    // ros::shutdown();
                 } else {
-                    // 规划失败，增加失败计数
                     consecutive_planning_failures_++;
-
-                    // ROS_WARN_THROTTLE(1.0, "Planning failed - consecutive failures: %d/%d", consecutive_planning_failures_, MAX_CONSECUTIVE_FAILURES);
-
                     if (!last_traj_.empty()) {
                         ++planner_.env()->num_of_continuous_failure;
                         plan_next_time_ = common::util::GetCurrentTimestamp() + fail_rolling_time_;
@@ -499,7 +464,6 @@ class PlannerNode {
                     if (cycle_count_ == 1) {
                         ros::shutdown();
                     } else {
-                        // 使用上一帧轨迹继续行驶
                         if (!FindTrajOnCurrentIndex(cur_index_) || cur_index_ < 0 || cur_index_ >= static_cast<int>(last_traj_.size())) {
                             ROS_WARN("Invalid trajectory index in failure handling, resetting to 0");
                             cur_index_ = 0;
@@ -528,7 +492,6 @@ class PlannerNode {
                     }
                 }
 
-                // 确保可视化是最新的
                 if (agv_simulator_ && agv_simulator_->IsEnabled()) {
                     my_env_.Visualize();
                 }
@@ -541,7 +504,7 @@ class PlannerNode {
             }
 
             if (is_traj_receive_) {
-                // PublishRecordingData();    // Publish data for recording
+                // PublishRecordingData();
             }
         }
     }
@@ -553,7 +516,6 @@ class PlannerNode {
                 send_traj_next_time_ = common::util::GetCurrentTimestamp() + send_traj_duration_;
                 SendTrajectory(robot_id_, last_traj_);
 
-                // 添加边界检查
                 if (FindTrajOnCurrentIndex(cur_index_) && cur_index_ >= 0 && cur_index_ < static_cast<int>(last_traj_.size())) {
                     double lateral_error = hypot(planner_.current_state().x - last_traj_.at(cur_index_).x,
                                                  planner_.current_state().y - last_traj_.at(cur_index_).y);
@@ -575,17 +537,17 @@ class PlannerNode {
             if (is_first_send_current_time_) {
                 first_current_time_ = current_time;
                 is_first_send_current_time_ = false;
-                ROS_WARN("[DEBUG] First send time initialized: first_current_time_ = %.3f", first_current_time_);
+                // ROS_WARN("[DEBUG] First send time initialized: first_current_time_ = %.3f", first_current_time_);
             }
 
             if (current_time > send_traj_next_time_) {
                 send_traj_next_time_ = common::util::GetCurrentTimestamp() + send_traj_duration_;
 
                 double elapsed_time = current_time - first_current_time_;
-                ROS_INFO_THROTTLE(1.0, "[DEBUG-SIM] elapsed_time=%.3f, traj_size=%zu, traj_t_range=[%.3f, %.3f]",
-                    elapsed_time, last_traj_.size(),
-                    last_traj_.empty() ? -1.0 : last_traj_.front().t,
-                    last_traj_.empty() ? -1.0 : last_traj_.back().t);
+                // ROS_INFO_THROTTLE(1.0, "[DEBUG-SIM] elapsed_time=%.3f, traj_size=%zu, traj_t_range=[%.3f, %.3f]",
+                    // elapsed_time, last_traj_.size(),
+                    // last_traj_.empty() ? -1.0 : last_traj_.front().t,
+                    // last_traj_.empty() ? -1.0 : last_traj_.back().t);
 
                 bool found_index = false;
                 for (int i = 0; i < last_traj_.size() - 1; ++i) {
@@ -594,10 +556,9 @@ class PlannerNode {
                         auto current_state = last_traj_.at(i);
                         planner_.set_current_state(last_traj_.at(i));
                         found_index = true;
-                        ROS_INFO_THROTTLE(1.0, "[DEBUG-SIM] Found index=%d, traj_t=%.3f, pos=(%.3f,%.3f), v=%.3f",
-                            i, last_traj_.at(i).t, current_state.x, current_state.y, current_state.v);
+                        // ROS_INFO_THROTTLE(1.0, "[DEBUG-SIM] Found index=%d, traj_t=%.3f, pos=(%.3f,%.3f), v=%.3f",
+                        //     i, last_traj_.at(i).t, current_state.x, current_state.y, current_state.v);
 
-                        // Use the new central update function
                         UpdateVehicleState(Pose(current_state));
 
                         if (last_traj_.back().t - last_traj_.at(cur_index_).t < traj_minimum_remaining_time_) {
@@ -694,19 +655,16 @@ class PlannerNode {
 
             current_pose_received_ = true;
         }
-        // 如果使用实车AGV，更新AGV障碍物位置
         if (use_real_agv_ /*&& real_agv_generator_*/) {
             UpdateRealAGVObstacles(obj);
         }
         VisualizationPlot::Trigger();
 
-        // Publish recording data when we have fresh Nokov data
         PublishRecordingData();
     }
 
     void UpdateRealAGVData(const json& nokov_data) {
         boost::mutex::scoped_lock lock(agv_data_mutex_);
-        // 这个函数现在只负责为优化器提供障碍物的“当前”位置快照
         planner_.env()->obstacles.resize(original_obstacle_count_);
         planner_.env()->obstacles_struct.resize(original_obstacle_count_);
 
@@ -722,7 +680,6 @@ class PlannerNode {
                     double y = pose_vec[1] / 1000.0;
                     double theta = pose_vec[2];
 
-                    // 1. 更新AGV的实时位姿状态
                     auto& state = agv_states_[agv_id];
                     state.last_known_pose.set_x(x);
                     state.last_known_pose.set_y(y);
@@ -730,24 +687,20 @@ class PlannerNode {
                     state.last_update_time = ros::Time::now();
                     state.pose_initialized = true;
 
-                    // 2. 为规划器创建当前的“静态”障碍物
                     planner_.env()->obstacles.push_back(common::Obstacle(CreateCircularPolygon(x, y, agv_collision_radius_, 12)));
                 }
             }
         }
     }
 
-    // 更新实车AGV作为障碍物
     void UpdateRealAGVObstacles(const json& nokov_data) {
-        // 清理之前的动态障碍物，保留原始静态障碍物
         planner_.env()->obstacles.resize(original_obstacle_count_);
         planner_.env()->obstacles_struct.resize(original_obstacle_count_);
 
-        // 从Nokov数据中获取AGV位置并添加为障碍物
         if (nokov_data.contains("move_obs")) {
             std::vector<int> agv_ids;
             if (!nh_.getParam("real_agv_ids", agv_ids)) {
-                agv_ids = {4, 5, 20};    // 默认ID
+                agv_ids = {4, 5, 20};    
             }
 
             for (int agv_id : agv_ids) {
@@ -757,17 +710,14 @@ class PlannerNode {
                     std::vector<double> pose;
                     nokov_data["move_obs"][key].get_to(pose);
 
-                    // 转换为米
                     double x = pose[0] / 1000.0;
                     double y = pose[1] / 1000.0;
                     double theta = pose[2];
 
-                    // 创建AGV障碍物（圆形）
                     Vec2d center(x, y);
-                    double agv_radius = 0.065;        // AGV半径
-                    double vis_agv_radius = 0.065;    // AGV半径
+                    double agv_radius = 0.065;       
+                    double vis_agv_radius = 0.065;    
 
-                    // 创建圆形多边形
                     std::vector<Vec2d> circle_points;
                     const int num_points = 12;
                     for (int i = 0; i < num_points; ++i) {
@@ -788,12 +738,11 @@ class PlannerNode {
                     }
                     Polygon2d vis_agv_poly(circle_points);
 
-                    // 创建障碍物结构体
                     DynamicAABB obs_struct;
                     obs_struct.center_xy = center;
                     obs_struct.dynamic_aabb = vis_agv_poly;
                     obs_struct.change_time = ros::Time::now().toSec();
-                    obs_struct.is_dynamic = true;    // 标记为动态
+                    obs_struct.is_dynamic = true;    
                     obs_struct.radius = agv_radius;
                     obs_struct.length = agv_radius * 2.0;
                     obs_struct.width = agv_radius * 2.0;
@@ -803,16 +752,12 @@ class PlannerNode {
                 }
             }
 
-            // 更新环境的障碍物数据
-            // if (!planner_.env()->obstacles.empty()) {
             planner_.env()->GetObsXY(planner_.env()->obs_border_point_x, planner_.env()->obs_border_point_y);
             planner_.env()->GetObsPoints(planner_.env()->obs_points_);
 
-            // 同步到my_env
             my_env_.obstacles = planner_.env()->obstacles;
             my_env_.obstacles_struct = planner_.env()->obstacles_struct;
 
-            // 触发可视化更新
             my_env_.Visualize();
 
             for (int agv_id : agv_ids) {
@@ -824,7 +769,6 @@ class PlannerNode {
                     double y = pose_vec[1] / 1000.0;
                     double theta = pose_vec[2];
 
-                    // 更新AGV的实时位姿状态
                     auto& state = agv_states_[agv_id];
                     state.last_known_pose.set_x(x);
                     state.last_known_pose.set_y(y);
@@ -868,7 +812,6 @@ class PlannerNode {
                 if (sl.x() - obs_s > obs_range_.front() && sl.x() - obs_s < obs_range_.back()) {
                     double time_diff = current_time - planner_.env()->obstacles_struct.at(i).change_time;
                     if (time_diff >= obs_vel_time_) {
-                        // planner_.GenerateObstacles(planner_.env()->reference, false, i);
                         planner_.LogCounter(planner_.env()->counter);
                         planner_.env()->counter = 0;
                     }
@@ -940,10 +883,8 @@ class PlannerNode {
 
     enum PlannerChoose { NORMAL };
 
-    // 更新AGV障碍物 - 每次规划时获取当前快照
     void UpdateAGVObstaclesAsStatic(const ros::TimerEvent&) {
         if (use_real_agv_) {
-            // 实车模式下，障碍物更新已经在NokovCallback中处理
             return;
         }
         if (!agv_simulator_ || !agv_simulator_->IsEnabled()) {
@@ -951,19 +892,14 @@ class PlannerNode {
         }
 
         try {
-            // 获取AGV当前位置的快照
             auto agv_snapshot = agv_simulator_->GetAGVObstaclesSnapshot();
 
-            // 清理之前的动态障碍物，保留原始静态障碍物
             planner_.env()->obstacles.resize(original_obstacle_count_);
             planner_.env()->obstacles_struct.resize(original_obstacle_count_);
 
-            // 将AGV快照添加为"静态"障碍物
             for (const auto& agv_poly : agv_snapshot) {
-                // 添加到障碍物列表
                 planner_.env()->obstacles.push_back(common::Obstacle(agv_poly));
 
-                // 创建障碍物结构体
                 DynamicAABB obs_struct;
                 obs_struct.center_xy = agv_poly.center();
                 obs_struct.dynamic_aabb = agv_poly;
@@ -974,21 +910,15 @@ class PlannerNode {
                 obs_struct.width = obs_struct.radius * 2.0;
                 obs_struct.heading = 0.0;
 
-                // // 创建Box2d用于可视化
-                // obs_struct.obs_box = common::math::Box2d(obs_struct.center_xy, obs_struct.heading, obs_struct.length, obs_struct.width);
-
                 planner_.env()->obstacles_struct.push_back(obs_struct);
             }
-            // 更新环境的障碍物数据
             if (!agv_snapshot.empty()) {
                 planner_.env()->GetObsXY(planner_.env()->obs_border_point_x, planner_.env()->obs_border_point_y);
                 planner_.env()->GetObsPoints(planner_.env()->obs_points_);
 
-                // 同步到my_env - 这是关键！
                 my_env_.obstacles = planner_.env()->obstacles;
                 my_env_.obstacles_struct = planner_.env()->obstacles_struct;
 
-                // 立即触发可视化更新
                 my_env_.Visualize();
             }
 
@@ -1079,7 +1009,6 @@ class PlannerNode {
     double traj_minimum_remaining_time_ratio_ = -999.0;
     int rear_num_ = -999;
 
-    // Sudden events
     PlannerChoose planner_choose_ = NORMAL;
     Polygon2d visual_default_polygon;
     double extend_s_length_ = -999.0;
@@ -1106,7 +1035,6 @@ class PlannerNode {
     std::uniform_real_distribution<double> time_gene_obs_;
     double next_replan_time_ = 999.0;
 
-    // experiment param
     bool is_first_nokov_ = false;
     sandbox_msgs::Trajectory pre_traj_msg_;
     double start_time_ = 0.0;
@@ -1120,30 +1048,25 @@ class PlannerNode {
     Polygon2d vis_virtual_polygon_;
     bool is_replan_suc_ = true;
 
-    // new
     boost::mutex pose_mutex_;
     double start_x_;
     double start_y_;
     double start_theta_;
     std::vector<common::math::Pose> historical_path_;
 
-    // std::vector<common::math::Pose> historical_path_;
     double traveled_distance_ = 0.0;
     Pose previous_pose_;
     bool has_previous_pose_ = false;
     double shutdown_mileage_threshold_ = -1.0;
-    int algorithm_id_;    // **NEW**: ID for this specific run
+    int algorithm_id_;   
 
-    // 用于起点随机化的成员
-    unsigned int node_random_seed_;         // 节点自身的随机数种子
-    std::mt19937 node_random_generator_;    // 节点的随机数引擎
+    unsigned int node_random_seed_;         
+    std::mt19937 node_random_generator_;    
 
-    // 用于生成x, y, theta扰动的随机数分布
     std::uniform_real_distribution<double> start_x_dist_;
     std::uniform_real_distribution<double> start_y_dist_;
     std::uniform_real_distribution<double> start_theta_dist_;
 
-    // ==========AGV仿真相关===============
     std::shared_ptr<AGVSimulator> agv_simulator_;
     ros::Timer agv_obstacle_timer_;
     size_t original_obstacle_count_ = 0;
@@ -1156,13 +1079,13 @@ class PlannerNode {
     double original_max_velocity_;
 
     // Publishers for rosbag recording
-    ros::Publisher ego_pose_record_pub_;         // 自车位置和姿态
-    ros::Publisher agv_positions_record_pub_;    // KK AGV小车位置
-    ros::Publisher planned_traj_record_pub_;     // 缝合后的规划轨迹
-    ros::Publisher timestamp_record_pub_;        // 时间戳记录
+    ros::Publisher ego_pose_record_pub_;        
+    ros::Publisher agv_positions_record_pub_;   
+    ros::Publisher planned_traj_record_pub_;     
+    ros::Publisher timestamp_record_pub_;        
 
     // Recording control
-    bool enable_rosbag_recording_ = false;    // Will be controlled by RECORD_FOR_PLAYBACK macro
+    bool enable_rosbag_recording_ = false;    
 
     struct AGVState {
         common::data::Trajectory predicted_trajectory;
@@ -1183,7 +1106,6 @@ class PlannerNode {
     }
 
     void GetStartPoseCallback(const geometry_msgs::PoseWithCovarianceStampedConstPtr& msg) {
-        // Clear the history when a new start pose is set
         historical_path_.clear();
         ResetTaskState();
 
@@ -1202,62 +1124,23 @@ class PlannerNode {
         VisualizationPlot::PlotPolygon(Polygon2d(foot_print), 0.01, Color::Green, 1, "vehicle");
         VisualizationPlot::PlotVehicleHeading(foot_print, Color::Green, 0.01, 1, "vehicle heading");
         VisualizationPlot::PlotBox(foot_print, Color::Green_translucent, 1, "vehicle fill");
-        // VisualizationPlot::PlotPoints({current_pose_.x()}, {current_pose_.y()}, 0.02, Color::Green, 10, "current position");
 
         VisualizationPlot::Trigger();
     }
 
-    //     void SendTrajectory(int ID, common::data::Trajectory& traj) {
-    //         sandbox_msgs::Trajectory traj_msg;
-    //         std::vector<double> xs, ys;
-    //         traj_msg.target = ID;
-    //         traj_msg.header.frame_id = "world";
-    //         traj_msg.header.stamp = ros::Time::now();
-    //         for (int i = 0; i < traj.size(); ++i) {
-    //             sandbox_msgs::TrajectoryPoint tp;
-    //             if (i >= cur_index_) {
-    //                 xs.emplace_back(traj[i].x);
-    //                 ys.emplace_back(traj[i].y);
-    //             }
-    //             tp.x = traj[i].x;
-    //             tp.y = traj[i].y;
-    //             tp.yaw = traj[i].theta;
-    //             tp.velocity = traj[i].v;
-    //             tp.acceleration = traj[i].a;
-    //             tp.time = traj[i].t;
-    //             traj_msg.points.push_back(tp);
-    //         }
-    //         pre_traj_msg_ = traj_msg;
-    // #ifndef PLAY_BAG
-    //         traj_pub_.publish(traj_msg);
-    // #endif
-
-    //         VisualizationPlot::Plot(xs, ys, 0.01, Color::Green, 9, "traj_result");
-    //         VisualizationPlot::Trigger();
-    //     }
-
     void SendTrajectory(int ID, common::data::Trajectory traj) {
-        // 调试日志
         if (!traj.empty()) {
-            ROS_INFO_THROTTLE(2.0, "[DEBUG-SEND] SendTrajectory called: traj_size=%zu, t_range=[%.3f,%.3f], v_range=[%.3f,%.3f]",
-                traj.size(), traj.front().t, traj.back().t, traj.front().v, traj.back().v);
+            // ROS_INFO_THROTTLE(2.0, "[DEBUG-SEND] SendTrajectory called: traj_size=%zu, t_range=[%.3f,%.3f], v_range=[%.3f,%.3f]",
+            //     traj.size(), traj.front().t, traj.back().t, traj.front().v, traj.back().v);
         }
 
-        // 1. 计算整条轨迹的不可行性向量
         std::vector<double> infeasibility_vector = planner_.CalculateInfeasibilityVector(traj);
-        // 2. 根据不可行性向量，找到轨迹的安全截断点
         int safe_end_index = planner_.FindSafeTrajectoryEndIndex(infeasibility_vector);
-        // 3. 确保至少发送两个点，以便控制器可以处理
         if (safe_end_index < 1) {
-            ROS_WARN("[DEBUG-SEND] safe_end_index < 1, NOT sending trajectory!");
+            // ROS_WARN("[DEBUG-SEND] safe_end_index < 1, NOT sending trajectory!");
             return;
         }
-        // 4. 将轨迹截断到安全的长度
-        // safe_end_index 是最后一个有效点的索引，所以新的大小是 index + 1
-        // if (safe_end_index < infeasibility_vector.size()) {
-        //     traj.resize(safe_end_index + 1);
-        // }
-        // 5. 发送截断后的安全轨迹
+    
         sandbox_msgs::Trajectory traj_msg;
         std::vector<double> xs, ys;
         traj_msg.target = ID;
@@ -1301,7 +1184,6 @@ class PlannerNode {
             return false;
         }
 
-        // 以第一个点初始化
         double min_distance = hypot(planner_.current_state().x - last_traj_[0].x, planner_.current_state().y - last_traj_[0].y);
         int station_index = 0;
 
@@ -1313,11 +1195,9 @@ class PlannerNode {
             }
         }
 
-        // 确保不会出现负数或越界
         station_index = std::max(0, std::min(station_index, static_cast<int>(last_traj_.size()) - 1));
         cur_index = station_index;
 
-        // 再次验证结果
         if (cur_index < 0 || cur_index >= static_cast<int>(last_traj_.size())) {
             ROS_ERROR("FindTrajOnCurrentIndex: Invalid result cur_index = %d, size = %zu", cur_index, last_traj_.size());
             cur_index = 0;
@@ -1345,11 +1225,10 @@ class PlannerNode {
             tp.omega = 0.0;
 
             if (i == 0) {
-                // 检查 cur_index_ 和 last_traj_ 的有效性
                 if (!last_traj_.empty() && cur_index_ >= 0 && cur_index_ < static_cast<int>(last_traj_.size())) {
                     tp.t = last_traj_.at(cur_index_).t;
                 } else {
-                    tp.t = 0.0;    // 使用默认时间
+                    tp.t = 0.0;    
                     ROS_WARN("Invalid cur_index_ (%d) or empty last_traj_ (size: %zu) in GenerateStitchSegment", cur_index_,
                              last_traj_.size());
                 }
@@ -1362,45 +1241,38 @@ class PlannerNode {
     }
 
    private:
-    // 避障状态机相关变量
     enum ObstacleAvoidanceState {
-        NORMAL_PLANNING,     // 正常规划状态
-        EMERGENCY_WAITING    // 紧急等待状态
+        NORMAL_PLANNING,     
+        EMERGENCY_WAITING    
     };
 
     ObstacleAvoidanceState avoidance_state_ = NORMAL_PLANNING;
     double state_transition_time_ = 0.0;
     int consecutive_planning_failures_ = 0;
-    static constexpr int MAX_CONSECUTIVE_FAILURES = 2;               // 连续失败阈值
-    static constexpr double FRONT_DETECTION_DISTANCE = 0.7;          // 前方检测距离
-    static constexpr double CENTERLINE_BLOCKING_TOLERANCE = 0.07;    // 中心线阻挡容忍度
-    static constexpr double EMERGENCY_WAIT_TIME = 2.0;               // 紧急等待时间
+    static constexpr int MAX_CONSECUTIVE_FAILURES = 2;               
+    static constexpr double FRONT_DETECTION_DISTANCE = 0.7;        
+    static constexpr double CENTERLINE_BLOCKING_TOLERANCE = 0.07;    
+    static constexpr double EMERGENCY_WAIT_TIME = 2.0;            
 
-    // 平滑停车相关
     bool is_emergency_stopping_ = false;
     double emergency_stop_start_time_ = 0.0;
 
-    bool use_real_agv_ = true;         // 是否使用实车AGV
-    bool real_agv_enabled_ = false;    // 实车AGV是否启用
-    // std::shared_ptr<MultiAGVTrajectoryGenerator> real_agv_generator_;    // 实车AGV轨迹生成器
+    bool use_real_agv_ = true;         
+    bool real_agv_enabled_ = false;   
 
     std::map<int, DynamicAABB> previous_agv_states_;
 
-    // 检测前方是否有障碍物阻挡
     bool DetectFrontObstacle(double& min_distance) {
         if (!current_pose_received_) return false;
 
-        // 获取当前车辆在参考线上的投影
         auto current_sl = planner_.env()->reference.GetProjection({planner_.current_state().x, planner_.current_state().y});
         min_distance = std::numeric_limits<double>::max();
 
-        // 检查所有障碍物
         for (size_t i = original_obstacle_count_; i < planner_.env()->obstacles.size(); ++i) {
             auto obstacle = planner_.env()->obstacles[i];
             auto obs_sl = planner_.env()->reference.GetProjection(obstacle.GetPolygon().center());
             double obs_distance = obs_sl.x() - current_sl.x();
 
-            // 只考虑前方障碍物
             if (obs_distance > 0 && obs_distance < FRONT_DETECTION_DISTANCE) {
                 min_distance = std::min(min_distance, obs_distance);
             }
@@ -1409,42 +1281,32 @@ class PlannerNode {
         return min_distance < FRONT_DETECTION_DISTANCE;
     }
 
-    // 检查AGV是否在中心线附近阻挡
     bool IsAGVBlockingCenterline() {
         if (!agv_simulator_ || !agv_simulator_->IsEnabled()) return false;
 
         return agv_simulator_->HasAGVNearCenterline(planner_.env()->reference.data(), CENTERLINE_BLOCKING_TOLERANCE);
     }
 
-    // 更新避障状态机
     void UpdateObstacleAvoidanceState() {
         double current_time = common::util::GetCurrentTimestamp();
         double front_obstacle_distance;
         bool has_front_obstacle = DetectFrontObstacle(front_obstacle_distance);
 
-        // 1. 根据当前车速，动态计算安全停车所需的预判时间
         const double current_velocity = planner_.current_state().v;
-        // 注意: max_deceleration 在物理上为正值，代表减速度大小
         const double max_deceleration = std::abs(planner_.env()->vehicle.max_deceleration);
-        const double system_reaction_buffer = 1.0;    // 为系统延迟、执行器延迟等设置的额外缓冲时间
+        const double system_reaction_buffer = 1.0;    
 
         double braking_time = 0.0;
-        // 防止除以零
         if (max_deceleration > 1e-3) {
             braking_time = current_velocity / max_deceleration;
         }
 
-        // 最终用于碰撞检测的时间窗口 = 物理刹车时间 + 系统反应缓冲
         const double dynamic_check_time = braking_time + system_reaction_buffer;
 
-        // 2. 主动检查当前轨迹在动态计算出的时间窗内是否存在碰撞风险
         bool is_imminent_collision = CheckTrajectoryCollision(last_traj_, dynamic_check_time);
 
         switch (avoidance_state_) {
             case NORMAL_PLANNING:
-                // 1. (主动安全) 预测到在安全刹车距离内即将发生碰撞
-                // 或
-                // 2. (被动安全) 在障碍物前持续规划失败
                 if (is_imminent_collision || (consecutive_planning_failures_ >= MAX_CONSECUTIVE_FAILURES && has_front_obstacle)) {
                     avoidance_state_ = EMERGENCY_WAITING;
                     state_transition_time_ = current_time;
@@ -1468,47 +1330,21 @@ class PlannerNode {
                 break;
 
             case EMERGENCY_WAITING:
-                // 退出紧急状态的条件: 等待时间结束，并且前方的直接威胁已解除
                 if (current_time - state_transition_time_ > EMERGENCY_WAIT_TIME) {
                     if (!has_front_obstacle) {
                         ROS_INFO("Conditions improved. Transitioning back to NORMAL_PLANNING.");
                         avoidance_state_ = NORMAL_PLANNING;
-                        consecutive_planning_failures_ = 0;    // 重置失败计数
-                        is_emergency_stopping_ = false;        // 清除紧急停车标记
-                        last_traj_.clear();                    // 清空旧轨迹，强制进行一次全新的规划
+                        consecutive_planning_failures_ = 0;    
+                        is_emergency_stopping_ = false;  
+                        last_traj_.clear();                    
                     } else {
-                        // --- MODIFICATION START ---
-                        // 如果条件未改善，不再重置计时器，仅打印日志。
-                        // 这将允许系统在每个后续周期都检查恢复条件。
-                        // state_transition_time_ = current_time;  // <--- REMOVED THIS LINE
                         ROS_INFO_THROTTLE(
                             2.0, "Still in EMERGENCY_WAITING. Front obstacle is still present.");    // Use THROTTLE to avoid log spam
-                        // --- MODIFICATION END ---
                     }
                 }
                 break;
         }
     }
-
-    // bool CheckTrajectoryCollision(const common::data::Trajectory& traj, double check_time) {
-    //     if (traj.empty() || !current_pose_received_) return false;
-
-    //     double current_time = planner_.current_state().t;
-    //     double end_time = current_time + check_time;
-
-    //     for (const auto& tp : traj) {
-    //         if (tp.t < current_time) continue;
-    //         if (tp.t > end_time) break;
-
-    //         Box2d vehicle_box = planner_.env()->vehicle.GenerateBox(Pose(tp));
-    //         if (planner_.env()->CheckCollision(vehicle_box)) {
-    //             ROS_WARN("Collision detected at time %.2f with obstacle", tp.t);
-    //             return true;
-    //         }
-    //     }
-
-    //     return false;
-    // }
 
     bool CheckTrajectoryCollision(const common::data::Trajectory& ego_traj, double check_time) {
         if (ego_traj.empty() || !current_pose_received_) return false;
@@ -1522,7 +1358,6 @@ class PlannerNode {
 
             Box2d ego_vehicle_box = planner_.env()->vehicle.GenerateBox(Pose(ego_tp.x, ego_tp.y, ego_tp.theta));
 
-            // 遍历所有已知的AGV
             for (auto& [agv_id, agv_state] : agv_states_) {
                 if (!agv_state.pose_initialized || agv_state.predicted_trajectory.empty()) continue;
 
@@ -1599,18 +1434,15 @@ class PlannerNode {
         return true;
     }
 
-    // 生成就地等待轨迹（车辆已停下时使用）
     void GenerateStationaryWaitTrajectory() {
         last_traj_.clear();
 
-        // 获取当前状态
         double current_x = planner_.current_state().x;
         double current_y = planner_.current_state().y;
         double current_theta = planner_.current_state().theta;
         double current_time = planner_.current_state().t;
 
-        // 生成就地等待的轨迹点（保持位置不变）
-        int wait_points = 20;    // 2秒的等待轨迹
+        int wait_points = 20;   
         double dt = 0.1;
 
         for (int i = 0; i < wait_points; ++i) {
@@ -1636,7 +1468,6 @@ class PlannerNode {
 
         ros::Time current_ros_time = ros::Time::now();
 
-        // 1. Publish ego vehicle pose (自车位置和姿态)
         if (current_pose_received_) {
             geometry_msgs::PoseStamped ego_pose_msg;
             ego_pose_msg.header.stamp = current_ros_time;
@@ -1654,14 +1485,11 @@ class PlannerNode {
             ego_pose_record_pub_.publish(ego_pose_msg);
         }
 
-        // 2. Publish AGV positions (物理世界里的KK小车位置)
         geometry_msgs::PoseArray agv_poses_msg;
         agv_poses_msg.header.stamp = current_ros_time;
         agv_poses_msg.header.frame_id = "world";
 
         if (use_real_agv_) {
-            // Real AGV mode - positions from Nokov
-            // These will be updated in NokovCallback and stored
             for (const auto& obs : planner_.env()->obstacles) {
                 if (obs.GetPolygon().points().size() > 0) {
                     geometry_msgs::Pose agv_pose;
@@ -1670,13 +1498,11 @@ class PlannerNode {
                     agv_pose.position.y = center.y();
                     agv_pose.position.z = 0.0;
 
-                    // AGVs are circular, orientation doesn't matter
                     agv_pose.orientation.w = 1.0;
                     agv_poses_msg.poses.push_back(agv_pose);
                 }
             }
         } else if (agv_simulator_ && agv_simulator_->IsEnabled()) {
-            // Simulated AGV mode
             auto agv_snapshot = agv_simulator_->GetAGVObstaclesSnapshot();
             for (const auto& agv_poly : agv_snapshot) {
                 geometry_msgs::Pose agv_pose;
@@ -1693,19 +1519,15 @@ class PlannerNode {
             agv_positions_record_pub_.publish(agv_poses_msg);
         }
 
-        // 3. Publish stitched trajectory (缝合后的轨迹，车辆实际跟踪的轨迹)
         if (is_traj_receive_ && !last_traj_.empty()) {
-            // 使用您自定义的 sandbox_msgs::Trajectory 消息类型
             sandbox_msgs::Trajectory traj_msg;
             traj_msg.header.stamp = current_ros_time;
             traj_msg.header.frame_id = "world";
-            traj_msg.target = robot_id_;    // 设置轨迹的目标ID
+            traj_msg.target = robot_id_;   
 
-            // 从当前车辆位置开始记录轨迹
             int start_idx = 0;
             if (FindTrajOnCurrentIndex(start_idx)) {
                 for (int i = start_idx; i < static_cast<int>(last_traj_.size()); ++i) {
-                    // 创建并填充包含完整信息的消息点
                     sandbox_msgs::TrajectoryPoint tp;
                     const auto& src_tp = last_traj_[i];
                     tp.x = src_tp.x;
@@ -1713,8 +1535,8 @@ class PlannerNode {
                     tp.yaw = src_tp.theta;
                     tp.velocity = src_tp.v;
                     tp.acceleration = src_tp.a;
-                    tp.omega = src_tp.omega;    // 记录角速度
-                    tp.time = src_tp.t;         // 记录时间戳
+                    tp.omega = src_tp.omega;    
+                    tp.time = src_tp.t;         
 
                     traj_msg.points.push_back(tp);
                 }
@@ -1725,7 +1547,6 @@ class PlannerNode {
             }
         }
 
-        // 4. Publish timestamp for synchronization
         std_msgs::String timestamp_msg;
         timestamp_msg.data = std::to_string(common::util::GetCurrentTimestamp());
         timestamp_record_pub_.publish(timestamp_msg);

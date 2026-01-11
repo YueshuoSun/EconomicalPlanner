@@ -137,25 +137,20 @@ class Planner {
 
     double traj_delta_time_ = 0.1;
 
-    // log
     std::string log_filename_, log_time_other_filename_, log_cost_filename_, log_timecost_filename_;
     double min_obs_length_, max_obs_length_;
     double min_obs_width_, max_obs_width_;
-    unsigned int random_seed_;    // 使用无符号整数作为种子
+    unsigned int random_seed_;    
 
-    std::mt19937 random_generator_;                         // 随机数引擎
-    std::uniform_real_distribution<double> length_dist_;    // 长度的均匀分布
-    std::uniform_real_distribution<double> width_dist_;     // 宽度的均匀分布
-    // 用于生成朝向随机偏移量的分布
+    std::mt19937 random_generator_;                        
+    std::uniform_real_distribution<double> length_dist_;  
+    std::uniform_real_distribution<double> width_dist_;    
     std::uniform_real_distribution<double> heading_deviation_dist_;
-    // 用于生成横向位置 l 的随机分布
     std::uniform_real_distribution<double> lateral_dist_;
-    // 用于生成非连续横向位置 l 的随机分布
-    std::uniform_int_distribution<int> side_chooser_dist_;         // 用于选择左侧(0)或右侧(1)
-    std::uniform_real_distribution<double> left_lateral_dist_;     // 左侧区域的分布
-    std::uniform_real_distribution<double> right_lateral_dist_;    // 右侧区域的分布
+    std::uniform_int_distribution<int> side_chooser_dist_;         
+    std::uniform_real_distribution<double> left_lateral_dist_;    
+    std::uniform_real_distribution<double> right_lateral_dist_;    
 
-    // log new
     double my_dp_time_;
     double my_nlp_time_;
     double my_liom_time_;

@@ -60,10 +60,10 @@ struct TrajectoryNLPConfig {
 
     // LIOM相关参数
     int var_num = 7;
-    double infeasibility_weight_near = 1e6;    // 近距离不可行性权重
-    double infeasibility_weight_far = 1e4;     // 远距离不可行性权重
+    double infeasibility_weight_near = 1e5;    // 近距离不可行性权重
+    double infeasibility_weight_far = 1e3;     // 远距离不可行性权重
     double infeasibility_weight_ratio = 10.0;
-    double infeasibility_threshold = 0.00001;
+    double infeasibility_threshold = 0.0001;
     int infeasibility_failed_num = 1000;
     int iter_num = 5;
 

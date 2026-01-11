@@ -57,7 +57,6 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ./
-  # /usr/include/eigen3/
 )
 
 add_executable(planner_node1
@@ -95,7 +94,6 @@ add_executable(planner_node1
 
 target_include_directories(planner_node1 PUBLIC
   ./
-  # third_party/nlohmann/
   ${catkin_INCLUDE_DIRS}
 )
 

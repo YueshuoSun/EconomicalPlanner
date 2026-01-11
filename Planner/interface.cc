@@ -31,43 +31,37 @@ Planner::Planner() : nh_("~/planning"), rd_(), gen_(rd_()) {
     VisualizationPlot::Init(nh_, "world", "markers");
     env_ = std::make_shared<Environment>();
     ReadConfig();
-    nh_.param("min_obs_length", min_obs_length_, 0.8);      // 最小长度，默认0.8米
-    nh_.param("max_obs_length", max_obs_length_, 1.5);      // 最大长度，默认1.5米
-    nh_.param("min_obs_width", min_obs_width_, 0.6);        // 最小宽度，默认0.6米
-    nh_.param("max_obs_width", max_obs_width_, 1.0);        // 最大宽度，默认1.0米
-    nh_.param("random_seed", (int&)random_seed_, 12345);    // 随机数种子，默认12345
+    nh_.param("min_obs_length", min_obs_length_, 0.8);      
+    nh_.param("max_obs_length", max_obs_length_, 1.5);     
+    nh_.param("min_obs_width", min_obs_width_, 0.6);        
+    nh_.param("max_obs_width", max_obs_width_, 1.0);        
+    nh_.param("random_seed", (int&)random_seed_, 12345);    
 
-    // 使用种子初始化随机数引擎
     random_generator_.seed(random_seed_);
     ROS_INFO("Planner's obstacle generator initialized with random seed: %u", random_seed_);
 
-    // 初始化随机数分布范围
     length_dist_ = std::uniform_real_distribution<double>(min_obs_length_, max_obs_length_);
     width_dist_ = std::uniform_real_distribution<double>(min_obs_width_, max_obs_width_);
 
     double max_heading_deviation_deg;
-    nh_.param("max_heading_deviation_deg", max_heading_deviation_deg, 15.0);    // 默认最大偏移±15度
+    nh_.param("max_heading_deviation_deg", max_heading_deviation_deg, 15.0);    
 
-    // 将角度转换为弧度，并初始化分布
     double max_heading_deviation_rad = max_heading_deviation_deg * M_PI / 180.0;
     heading_deviation_dist_ = std::uniform_real_distribution<double>(-max_heading_deviation_rad, max_heading_deviation_rad);
 
     ROS_INFO("Obstacle heading will be randomized with max deviation: +/- %.2f degrees", max_heading_deviation_deg);
 
-    // 定义中间安全走廊和道路边界
     double lateral_dead_zone_min, lateral_safe_zone_max;
-    nh_.param("lateral_dead_zone_min", lateral_dead_zone_min, 0.3);    // 中间安全走廊的半宽，即l_min
-    nh_.param("lateral_safe_zone_max", lateral_safe_zone_max, 1.2);    // 道路可通行区域的半宽，即l_max
+    nh_.param("lateral_dead_zone_min", lateral_dead_zone_min, 0.3);    
+    nh_.param("lateral_safe_zone_max", lateral_safe_zone_max, 1.2);    
 
-    // 校验参数合法性
     if (lateral_dead_zone_min < 0 || lateral_safe_zone_max < 0 || lateral_dead_zone_min >= lateral_safe_zone_max) {
         ROS_WARN("Lateral offset parameters are invalid. Reverting to defaults [0.3, 1.2].");
         lateral_dead_zone_min = 0.3;
         lateral_safe_zone_max = 1.2;
     }
 
-    // 初始化三个分布
-    side_chooser_dist_ = std::uniform_int_distribution<int>(0, 1);    // 0代表左侧, 1代表右侧
+    side_chooser_dist_ = std::uniform_int_distribution<int>(0, 1);    
     left_lateral_dist_ = std::uniform_real_distribution<double>(-lateral_safe_zone_max, -lateral_dead_zone_min);
     right_lateral_dist_ = std::uniform_real_distribution<double>(lateral_dead_zone_min, lateral_safe_zone_max);
 
@@ -103,15 +97,9 @@ void Planner::ReadConfig() {
     nh_.param("resample_resolution", dp_path_config_.resample_resolution, -999.0);
     nh_.param("w_lateral", dp_path_config_.w_lateral, -999.0);
     nh_.param("w_lateral_change", dp_path_config_.w_lateral_change, -999.0);
-    // nh_.param("w_obstacle", dp_path_config_.w_obstacle, -999.0);
-    // nh_.param("w_obstacle_near", dp_path_config_.w_obstacle, -999.0);
-    // nh_.param("w_obstacle", dp_path_config_.w_obstacle, -999.0);
     nh_.param("w_target", dp_path_config_.w_target, -999.0);
     nh_.param("collision_check_resolution", dp_path_config_.collision_check_resolution, -999.0);
-    // nh_.param("target_range", dp_path_config_.target_range, std::vector<double>{-999.0, -999.0});
     nh_.param("valid_angular", dp_path_config_.valid_angular, -999.0);
-    // nh_.param("num_s", dp_path_config_.num_s, -999);
-    // nh_.param("num_l", dp_path_config_.num_l, -999);
     nh_.param("l_deviation", dp_path_config_.l_deviation, -999.0);
     nh_.param("road_half_width", dp_path_config_.road_half_width, -999.0);
     nh_.param("center_line_obs_range_front", dp_path_config_.center_line_obs_range_front, -999.0);
@@ -119,21 +107,9 @@ void Planner::ReadConfig() {
     nh_.param("min_s_distance", dp_path_config_.min_s_distance, -999.0);
     nh_.param("initial_next_length", dp_path_config_.initial_next_length, -999.0);
 
-    // nh_.param("s_therehold", dp_path_config_.s_therehold, -999.0);
-    // nh_.param("fine_num_s", dp_path_config_.fine_num_s, -999);
-    // nh_.param("fine_num_l", dp_path_config_.fine_num_l, -999);
-    // nh_.param("fine_check_resolution", dp_path_config_.fine_check_resolution, 0.5);
-    // nh_.param("coarse_num_s", dp_path_config_.coarse_num_s, -999);
-    // nh_.param("coarse_num_l", dp_path_config_.coarse_num_l, -999);
-    // nh_.param("coarse_check_resolution", dp_path_config_.coarse_check_resolution, 0.5);
-
     // DP Speed Parameters
     nh_.param("tf", dp_speed_config_.tf, -999.0);
     nh_.param("nfe", dp_speed_config_.nfe, -999);
-    // nh_.param("num_s_velocity", dp_speed_config_.num_s_velocity, -999);
-    // nh_.param("num_v", dp_speed_config_.num_v, -999);
-    // nh_.param("w_nominal_velocity", dp_speed_config_.w_nominal_velocity, -999.0);
-    // nh_.param("w_acceleration", dp_speed_config_.w_acceleration, -999.0);
     nh_.param("v_min", dp_speed_config_.v_min, -999.0);
     nh_.param("dp_cost_max", dp_speed_config_.dp_cost_max, -999.0);
     nh_.param("dp_cost_acc_max", dp_speed_config_.dp_cost_acc_max, -999.0);
@@ -143,27 +119,11 @@ void Planner::ReadConfig() {
     nh_.param("v_reduction_rate", dp_speed_config_.v_reduction_rate, -999.0);
     nh_.param("dt_resolution", dp_speed_config_.dt_resolution, -999.0);
 
-    // nh_.param("s_velocity_therehold", dp_speed_config_.s_velocity_therehold, -999.0);
-    // nh_.param("fine_num_s_velocity", dp_speed_config_.fine_num_s_velocity, -999);
-    // nh_.param("fine_num_v", dp_speed_config_.fine_num_v, -999);
-    // nh_.param("coarse_num_s_velocity", dp_speed_config_.coarse_num_s_velocity, -999);
-    // nh_.param("coarse_num_v", dp_speed_config_.coarse_num_v, -999);
-
     traj_delta_time_ = dp_speed_config_.tf / (dp_speed_config_.nfe - 1);
 
     // Trajectory NLP
     nh_.param("nfe", traj_nlp_config_.nfe, -999);
-    // nh_.param("corridor_step", traj_nlp_config_.corridor_step, -999.0);
-    // nh_.param("w_opti_omega", traj_nlp_config_.w_opti_omega, -999.0);
-    // nh_.param("w_opti_a", traj_nlp_config_.w_opti_a, -999.0);
     nh_.param("w_end_ratio", traj_nlp_config_.end_ratio, -999.0);
-    // nh_.param("w_opti_track", traj_nlp_config_.w_opti_track, -999.0);
-    // nh_.param("w_opti_track_theta", traj_nlp_config_.w_opti_track_theta, -999.0);
-    // nh_.param("w_opti_track_v", traj_nlp_config_.w_opti_track_v, -999.0);
-    // traj_nlp_config_.w_opti_xy_end = traj_nlp_config_.end_ratio * traj_nlp_config_.w_opti_track;
-    // traj_nlp_config_.w_opti_theta_end = traj_nlp_config_.end_ratio * traj_nlp_config_.w_opti_track_theta;
-    // traj_nlp_config_.w_opti_v_end = traj_nlp_config_.end_ratio * traj_nlp_config_.w_opti_track_v;
-
     nh_.param("corridor_max_iter", traj_nlp_config_.corridor_max_iter, -999);
     nh_.param("corridor_incremental_limit", traj_nlp_config_.corridor_incremental_limit, -999.0);
 
@@ -207,7 +167,6 @@ bool Planner::RollingTimePlan(int driving_type, const Trajectory& last_trajector
             new_trajectory.front().t = current_state_.t;
 
             for (size_t i = 1; i < new_trajectory.size(); ++i) {
-                // 后续点依次递增
                 new_trajectory.at(i).t = new_trajectory.at(i - 1).t + traj_delta_time_;
             }
             return true;
@@ -215,17 +174,13 @@ bool Planner::RollingTimePlan(int driving_type, const Trajectory& last_trajector
         return false;
     }
 
-    // 创建一个可修改的轨迹副本，后续所有操作都基于这个副本
     Trajectory safe_trajectory_to_stitch = last_trajectory;
     driving_type = 2;
 
-    // 检查并截断轨迹副本
     TruncateTrajectoryToSafePoint(safe_trajectory_to_stitch);
 
-    // 如果截断后轨迹太短或完全不可行，则无法进行拼接，应直接重规划
     if (safe_trajectory_to_stitch.size() < 2) {
         ROS_WARN("上一条轨迹在截断后过短或不可行，将从当前状态重新规划。");
-        // 调用完整的重规划逻辑
         if (PlanTrajectory(my_env, driving_type, TrajectoryPoint(current_state_), new_trajectory)) {
             start_time_ = common::util::GetCurrentTimestamp();
             if (!new_trajectory.empty()) {
@@ -236,7 +191,7 @@ bool Planner::RollingTimePlan(int driving_type, const Trajectory& last_trajector
             }
             return true;
         }
-        return false;    // 如果重规划也失败了
+        return false;    
     }
 
     int current_match_index;
@@ -250,7 +205,6 @@ bool Planner::RollingTimePlan(int driving_type, const Trajectory& last_trajector
 
     ROS_INFO("FindStitchIndex result: current_match_index=%d", current_match_index);
 
-    // 确保 stitch_time_ 和 traj_delta_time_ 都是正数且合理
     if (stitch_time_ <= 0.0 || traj_delta_time_ <= 0.0) {
         ROS_ERROR("Invalid timing parameters: stitch_time_=%.6f, traj_delta_time_=%.6f", stitch_time_, traj_delta_time_);
         return false;
@@ -262,7 +216,6 @@ bool Planner::RollingTimePlan(int driving_type, const Trajectory& last_trajector
     int target_index = current_match_index + increase_index;
     ROS_INFO("Target index: current_match_index(%d) + increase_index(%d) = %d", current_match_index, increase_index, target_index);
 
-    // 边界检查
     if (target_index < 0) {
         ROS_ERROR("Target index is negative: %d, using index 0", target_index);
         target_index = 0;
@@ -273,7 +226,6 @@ bool Planner::RollingTimePlan(int driving_type, const Trajectory& last_trajector
         target_index = safe_trajectory_to_stitch.size() - 1;
     }
 
-    // 额外的安全检查
     if (target_index < 0 || target_index >= static_cast<int>(safe_trajectory_to_stitch.size())) {
         ROS_ERROR("CRITICAL: target_index %d still out of bounds for size %zu", target_index, safe_trajectory_to_stitch.size());
         return false;
@@ -284,50 +236,42 @@ bool Planner::RollingTimePlan(int driving_type, const Trajectory& last_trajector
     planned_start_state_ = safe_trajectory_to_stitch.at(target_index);
     ROS_INFO("Successfully got planned_start_state_ from index %d", target_index);
 
-    // 执行路径规划
     Trajectory planned_trajectory;
     if (!PlanTrajectory(my_env, driving_type, TrajectoryPoint(planned_start_state_), planned_trajectory)) {
         ROS_INFO("Plan Failed!");
         return false;
     }
 
-    // 轨迹拼接
     common::data::Trajectory combined_trajectory;
 
     ROS_INFO("Copying trajectory segment: from 0 to %d (size: %zu)", target_index, safe_trajectory_to_stitch.size());
 
-    // 拷贝前半段轨迹
     for (int i = 0; i < target_index && i < static_cast<int>(safe_trajectory_to_stitch.size()); ++i) {
         combined_trajectory.push_back(safe_trajectory_to_stitch.at(i));
     }
 
     ROS_INFO("Copied %zu points from original trajectory", combined_trajectory.size());
 
-    // 检查新规划的轨迹是否为空
     if (planned_trajectory.empty()) {
         ROS_ERROR("Planned trajectory is empty, cannot combine");
         return false;
     }
 
-    // 拼接新规划的轨迹
     combined_trajectory.insert(combined_trajectory.end(), planned_trajectory.begin(), planned_trajectory.end());
 
     ROS_INFO("Final combined trajectory size: %zu", combined_trajectory.size());
 
-    // 时间戳更新
     if (!combined_trajectory.empty() && target_index < static_cast<int>(combined_trajectory.size())) {
         double base_time = target_index > 0 ? combined_trajectory.at(target_index - 1).t : 0.0;
 
         for (size_t i = target_index; i < combined_trajectory.size(); ++i) {
             if (i == target_index) {
-                // 第一个新点的时间戳基于前一个点
                 if (target_index > 0) {
                     combined_trajectory.at(i).t = combined_trajectory.at(target_index - 1).t + traj_delta_time_;
                 } else {
                     combined_trajectory.at(i).t = 0.0;
                 }
             } else {
-                // 后续点依次递增
                 combined_trajectory.at(i).t = combined_trajectory.at(i - 1).t + traj_delta_time_;
             }
         }
@@ -452,30 +396,8 @@ bool Planner::PlanTrajectory(const MyEnvironment& my_env, int driving_type, Traj
         return false;
     }
 
-    // std::vector<double> xs_nlp, ys_nlp;
-    // for (size_t i = 0; i <= 25; ++i) {
-    //     xs_nlp.push_back(liom_result[i].x);
-    //     ys_nlp.push_back(liom_result[i].y);
-    // }
-    // VisualizationPlot::Plot(xs_nlp, ys_nlp, 0.01, Color::Red, 10, "traj_result_before");
-    // xs_nlp.clear();
-    // ys_nlp.clear();
-    // for (size_t i = 25; i < liom_result.size(); ++i) {
-    //     xs_nlp.push_back(liom_result[i].x);
-    //     ys_nlp.push_back(liom_result[i].y);
-    // }
-    // VisualizationPlot::Plot(xs_nlp, ys_nlp, 0.01, Color::Green, 11, "traj_result_after");
-    // VisualizationPlot::PlotPoints({liom_result.front().x}, {liom_result.front().y}, 0.025, Color::Red, 12, "start_point");
-
     if (driving_type == 1) {
         std::vector<double> xs_nlp, ys_nlp;
-        // for (size_t i = 0; i <= 25; ++i) {
-        //     xs_nlp.push_back(liom_result[i].x);
-        //     ys_nlp.push_back(liom_result[i].y);
-        // }
-        // VisualizationPlot::Plot(xs_nlp, ys_nlp, 0.01, Color::Red, 10, "traj_result_before");
-        // xs_nlp.clear();
-        // ys_nlp.clear();
         for (size_t i = 0; i < liom_result.size(); ++i) {
             xs_nlp.push_back(liom_result[i].x);
             ys_nlp.push_back(liom_result[i].y);
@@ -539,7 +461,6 @@ bool Planner::FindStitchIndex(common::data::Trajectory traj_pool, int& index) {
         return false;
     }
 
-    // 检查当前状态是否有效
     if (std::isnan(current_state_.x) || std::isnan(current_state_.y)) {
         ROS_ERROR("FindStitchIndex: current state contains NaN values");
         return false;
@@ -553,9 +474,7 @@ bool Planner::FindStitchIndex(common::data::Trajectory traj_pool, int& index) {
 
     ROS_INFO("Initial min_distance=%.3f", min_distance);
 
-    // 寻找最近点
     for (size_t i = 1; i < traj_pool.size(); i++) {
-        // 检查轨迹点是否有效
         if (std::isnan(traj_pool[i].x) || std::isnan(traj_pool[i].y)) {
             ROS_WARN("Skipping trajectory point %zu due to NaN values", i);
             continue;
@@ -570,13 +489,10 @@ bool Planner::FindStitchIndex(common::data::Trajectory traj_pool, int& index) {
 
     ROS_INFO("Found station_index=%d with min_distance=%.3f", station_index, min_distance);
 
-    // 检查距离是否在合理范围内
     if (min_distance > min_s_distance_) {
         ROS_WARN("Min distance %.3f > threshold %.3f, but continuing", min_distance, min_s_distance_);
-        // 不要直接返回false，而是继续使用找到的最近点
     }
 
-    // 最终的边界检查
     if (station_index < 0 || station_index >= static_cast<int>(traj_pool.size())) {
         ROS_ERROR("Invalid station_index %d for trajectory size %zu", station_index, traj_pool.size());
         station_index = std::max(0, std::min(station_index, static_cast<int>(traj_pool.size()) - 1));
@@ -678,7 +594,6 @@ void Planner::GenerateObstacles(const common::data::DiscretizedTrajectory& road,
         if (obs_num_ >= 1 && !road.data().empty()) {
             int road_div = road.data().size() / num_obstacles;
 
-            // 使用种子初始化随机数引擎
             random_generator_.seed(random_seed_);
 
             auto generate_random_l = [&]() -> double {
@@ -690,10 +605,8 @@ void Planner::GenerateObstacles(const common::data::DiscretizedTrajectory& road,
             };
 
             for (int i = 0; i < num_obstacles; ++i) {
-                // 位置: s值沿路前进 i/num_obstacles，横向位置l随机
                 int obs_index = (initial_obs_index_ + i * road_div) % road.data().size();
 
-                // 边界检查
                 if (obs_index < 0 || obs_index >= static_cast<int>(road.data().size())) {
                     continue;
                 }
@@ -701,18 +614,15 @@ void Planner::GenerateObstacles(const common::data::DiscretizedTrajectory& road,
                 auto& road_point = road.data().at(obs_index);
                 auto obs_center = road.ToCartesian(road_point.s, generate_random_l());
 
-                // 尺寸: 随机
                 double obs_length = length_dist_(random_generator_);
                 double obs_width = width_dist_(random_generator_);
 
-                // 朝向: 随机
                 double road_heading = road_point.theta;
                 double random_deviation = heading_deviation_dist_(random_generator_);
                 double final_obs_heading = atan2(sin(road_heading + random_deviation), cos(road_heading + random_deviation));
 
                 auto obs_box = common::math::Box2d(obs_center, final_obs_heading, obs_length, obs_width);
 
-                // 添加到环境
                 DynamicAABB obs_struct;
                 obs_struct.center_xy = obs_center;
                 obs_struct.change_time = common::util::GetCurrentTimestamp() - 100.0;
@@ -728,11 +638,9 @@ void Planner::GenerateObstacles(const common::data::DiscretizedTrajectory& road,
             }
         }
 
-        // Virtual Obstacles - 添加边界检查
         for (size_t i = 0; i < 4; ++i) {
             int obs_idx = virtual_obs_index_[i];
 
-            // 边界检查
             if (obs_idx < 0 || obs_idx >= static_cast<int>(road.data().size())) {
                 ROS_ERROR("Invalid virtual_obs_index[%zu] = %d for road size %zu, skipping", i, obs_idx, road.data().size());
                 continue;
@@ -767,7 +675,6 @@ void Planner::GenerateObstacles(const common::data::DiscretizedTrajectory& road,
         return;
     }
 
-    // 更新现有障碍物时的边界检查
     if (index != -1 && index < static_cast<int>(env_->obstacles_struct.size()) && index < static_cast<int>(obs_index_.size())) {
         bool obs_choice = dist_obs_choice(gen_);
         double obs_l = obs_choice ? dist1_obs(gen_) : dist2_obs(gen_);
@@ -807,19 +714,16 @@ void Planner::GenerateObstacles(const common::data::DiscretizedTrajectory& road,
 
 common::math::Polygon2d Planner::GenerateRandomConvexPolygon(const common::math::Vec2d& center, double avg_radius, int min_vertices,
                                                              int max_vertices, double irregularity, double spikeyness) {
-    // 在设定的范围内随机决定顶点数量
     std::uniform_int_distribution<int> dist_num_vertices(min_vertices, max_vertices);
     int num_vertices = dist_num_vertices(gen_);
 
     std::vector<common::math::Vec2d> points;
     points.reserve(num_vertices);
 
-    // 随机生成顶点
     double angle_step = 2.0 * M_PI / num_vertices;
     for (int i = 0; i < num_vertices; ++i) {
         double angle = i * angle_step;
 
-        // 增加角度和半径的随机扰动
         std::uniform_real_distribution<double> dist_angle_offset(-angle_step * irregularity, angle_step * irregularity);
         double random_angle = angle + dist_angle_offset(gen_);
 
@@ -829,28 +733,23 @@ common::math::Polygon2d Planner::GenerateRandomConvexPolygon(const common::math:
         points.emplace_back(center.x() + random_radius * cos(random_angle), center.y() + random_radius * sin(random_angle));
     }
 
-    // --- 计算凸包 (Graham Scan 算法的简化实现) ---
-    // 1. 找到Y坐标最小的点作为基准点 P0
     auto p0_it = std::min_element(points.begin(), points.end(),
                                   [](const auto& a, const auto& b) { return a.y() < b.y() || (a.y() == b.y() && a.x() < b.x()); });
     std::swap(*points.begin(), *p0_it);
     const auto& p0 = points[0];
 
-    // 2. 将其他点按相对于P0的极角排序
     std::sort(std::next(points.begin()), points.end(), [&p0](const auto& a, const auto& b) {
         double angle_a = atan2(a.y() - p0.y(), a.x() - p0.x());
         double angle_b = atan2(b.y() - p0.y(), b.x() - p0.x());
         return angle_a < angle_b;
     });
 
-    // 3. 构建凸包
     std::vector<common::math::Vec2d> hull;
     for (const auto& pt : points) {
         while (hull.size() >= 2) {
-            // 检查新点是否在最后两个点的左侧 (叉积判断)
             double cross_product = (hull.back().x() - hull[hull.size() - 2].x()) * (pt.y() - hull.back().y()) -
                                    (hull.back().y() - hull[hull.size() - 2].y()) * (pt.x() - hull.back().x());
-            if (cross_product >= 0) {    // 如果不是严格左转，则弹出栈顶
+            if (cross_product >= 0) {  
                 hull.pop_back();
             } else {
                 break;
@@ -912,15 +811,12 @@ void Planner::LogCounter(const int& counter) {
 void Planner::LogTime(double dp_solve_time, double nlp_solve_time, const std::string& log_filename) {
     std::ofstream file;
 
-    // 以追加模式打开文件
     file.open(log_filename, std::ios::app);
     if (!file.is_open()) {
         ROS_ERROR("无法打开日志文件进行记录: %s", log_filename.c_str());
         return;
     }
 
-    // 将两个耗时数据以逗号分隔的形式写入，并换行
-    // 这会创建一个简单的CSV文件，便于后续处理
     file << dp_solve_time << "," << nlp_solve_time << "\n";
 
     file.close();
@@ -929,14 +825,12 @@ void Planner::LogTime(double dp_solve_time, double nlp_solve_time, const std::st
 void Planner::LogCost(double liom_cost, double nlp_cost, const std::string& log_filename) {
     std::ofstream file;
 
-    // 以追加模式打开文件
     file.open(log_filename, std::ios::app);
     if (!file.is_open()) {
         ROS_ERROR("无法打开日志文件进行记录: %s", log_filename.c_str());
         return;
     }
 
-    // 写入代价值并换行
     file << liom_cost << "," << nlp_cost << "\n";
 
     file.close();
@@ -946,15 +840,12 @@ void Planner::LogTimeCost(double dp_solve_time, double nlp_solve_time, double li
                           const std::string& log_filename) {
     std::ofstream file;
 
-    // 以追加模式打开文件
     file.open(log_filename, std::ios::app);
     if (!file.is_open()) {
         ROS_ERROR("无法打开日志文件进行记录: %s", log_filename.c_str());
         return;
     }
 
-    // 将两个耗时数据以逗号分隔的形式写入，并换行
-    // 这会创建一个简单的CSV文件，便于后续处理
     file << dp_solve_time << "," << nlp_solve_time << "," << liom_solve_time << "," << liom_cost << "," << nlp_cost << "\n";
 
     file.close();
@@ -963,13 +854,12 @@ void Planner::LogTimeCost(double dp_solve_time, double nlp_solve_time, double li
 void Planner::GenerateStopTraj(const TrajectoryPoint& plan_start, const common::data::DiscretizedTrajectory& ref_line, Trajectory& traj) {
     traj.clear();
     double v0 = plan_start.v;
-    double max_deceleration_ = std::fabs(env()->vehicle.max_deceleration);    // 使用环境中的车辆参数
-    double traj_time_resolution_ = 0.1;                                       // 轨迹时间分辨率，单位秒
-    // --- 1. 处理已静止的情况 ---
+    double max_deceleration_ = std::fabs(env()->vehicle.max_deceleration);  
+    double traj_time_resolution_ = 0.1;                                       
     if (v0 < 0.01) {
         ROS_INFO("Vehicle is already stopped. Generating a stationary trajectory.");
         traj.reserve(20);
-        for (int i = 0; i < 20; ++i) {    // 生成2秒的静止等待点
+        for (int i = 0; i < 20; ++i) {    
             common::data::TrajectoryPoint stop_point = plan_start;
             stop_point.v = 0.0;
             stop_point.a = 0.0;
@@ -979,58 +869,49 @@ void Planner::GenerateStopTraj(const TrajectoryPoint& plan_start, const common::
         return;
     }
 
-    // --- 2. 根据物理公式计算刹车时间和距离 ---
     double time_to_stop = v0 / max_deceleration_;
 
-    // --- 3. 随时间生成轨迹点 ---
     int num_steps = static_cast<int>(ceil(time_to_stop / traj_time_resolution_));
-    traj.reserve(num_steps);    // Pre-allocate memory
+    traj.reserve(num_steps);    
 
     for (int i = 0; i <= num_steps; ++i) {
         double t = i * traj_time_resolution_;
-        // 确保最后一个点的时间精确等于刹停时间
         if (t > time_to_stop) {
             t = time_to_stop;
         }
 
         common::data::TrajectoryPoint tp;
 
-        // v = v0 + at
         double current_v = std::max(0.0, v0 - max_deceleration_ * t);
-        // d = v0*t + 0.5*a*t^2
         double distance_traveled = v0 * t - 0.5 * max_deceleration_ * t * t;
 
-        // 位姿: 沿着起始方向的直线上
         tp.x = plan_start.x + distance_traveled * std::cos(plan_start.theta);
         tp.y = plan_start.y + distance_traveled * std::sin(plan_start.theta);
-        tp.theta = plan_start.theta;    // 航向角保持不变
+        tp.theta = plan_start.theta;   
 
-        // 运动学状态
         tp.v = current_v;
-        tp.a = (current_v > 1e-3) ? -max_deceleration_ : 0.0;    // 速度不为零时，加速度为最大减速度
-        tp.t = plan_start.t + t;                                 // 使用绝对时间
-        tp.phi = 0.0;                                            // 直线行驶，方向盘转角为0
-        tp.omega = 0.0;                                          // 直线行驶，角速度为0
+        tp.a = (current_v > 1e-3) ? -max_deceleration_ : 0.0;    
+        tp.t = plan_start.t + t;                               
+        tp.phi = 0.0;                                            
+        tp.omega = 0.0;                                          
 
         traj.push_back(tp);
 
         if (t >= time_to_stop) {
-            break;    // 确保在精确停止后不再添加点
+            break;    
         }
     }
 
-    // --- 4. 在轨迹末尾添加额外的静止点，确保控制器有足够的时间反应 ---
     if (!traj.empty()) {
         common::data::TrajectoryPoint final_point = traj.back();
         final_point.v = 0.0;
         final_point.a = 0.0;
-        for (int i = 1; i <= 10; ++i) {    // 额外增加1秒的静止点
+        for (int i = 1; i <= 10; ++i) {    
             final_point.t += traj_time_resolution_;
             traj.push_back(final_point);
         }
     }
 
-    // --- 5. 可视化最终生成的轨迹 ---
     std::vector<double> xs_traj, ys_traj;
     for (const auto& pt : traj) {
         xs_traj.push_back(pt.x);
@@ -1043,25 +924,20 @@ void Planner::GenerateStopTraj(const TrajectoryPoint& plan_start, const common::
 
 void Planner::TruncateTrajectoryToSafePoint(common::data::Trajectory& traj) {
     if (traj.size() < 2) {
-        return;    // 没有足够的点来进行检查
+        return;    
     }
 
-    // 1. 计算整条轨迹的不可行性向量
     std::vector<double> infeasibility_vector = CalculateInfeasibilityVector(traj);
 
-    // 2. 根据不可行性向量，找到轨迹的安全截断点
     int safe_end_index = FindSafeTrajectoryEndIndex(infeasibility_vector);
 
-    // 3. 如果安全点是第一个点 (index 0) 或更早，说明整条轨迹都不可行
     if (safe_end_index < 1) {
         traj.clear();
         return;
     }
 
-    // 4. 如果找到了不可行点，则将轨迹截断到安全的长度
     if (safe_end_index < infeasibility_vector.size()) {
         int original_size = traj.size();
-        // safe_end_index 是最后一个有效点的索引, 所以新的大小是 index + 1
         traj.resize(safe_end_index + 1);
     }
 }
@@ -1079,28 +955,24 @@ std::vector<double> Planner::CalculateInfeasibilityVector(const common::data::Tr
         const auto& next = traj[i + 1];
 
         double dt = next.t - prev.t;
-        if (dt <= 1e-6) {    // 避免时间步过小导致计算问题
+        if (dt <= 1e-6) {    
             infeasibility_vector.push_back(0.0);
             continue;
         }
 
-        // 1. 根据前一个状态 prev，预测下一个状态 next_pred
         double x_pred = prev.x + dt * prev.v * std::cos(prev.theta);
         double y_pred = prev.y + dt * prev.v * std::sin(prev.theta);
         double theta_pred = prev.theta + dt * prev.v * std::tan(prev.phi) / env()->vehicle.wheel_base;
         double v_pred = prev.v + dt * prev.a;
         double phi_pred = prev.phi + dt * prev.omega;
 
-        // 2. 计算预测值与真实值之间的误差
         double err_x = next.x - x_pred;
         double err_y = next.y - y_pred;
         double err_theta = next.theta - theta_pred;
-        // 将角度误差归一化到 [-PI, PI] 区间
         err_theta = std::atan2(std::sin(err_theta), std::cos(err_theta));
         double err_v = next.v - v_pred;
         double err_phi = next.phi - phi_pred;
 
-        // 3. 计算该步骤的不可行性（所有误差的平方和）
         double step_infeasibility = err_x * err_x + err_y * err_y + err_theta * err_theta + err_v * err_v + err_phi * err_phi;
 
         infeasibility_vector.push_back(step_infeasibility);

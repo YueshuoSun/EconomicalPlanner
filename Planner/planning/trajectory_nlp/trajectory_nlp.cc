@@ -43,9 +43,6 @@ void TrajectoryNLP::BuildCommon() {
     objective_ = sum1(weight_a_vector_ * sq(var_a_)) + sum1(weight_w_vector_ * sq(var_omega_)) +
                  sum1(weight_xy_vector_ * (sq(var_x_ - x_ref_) + sq(var_y_ - y_ref_))) +
                  sum1(weight_theta_vector_ * sq(var_theta_ - theta_ref_)) + sum1(weight_v_vector_ * sq(var_v_ - v_ref_));
-    // objective_ = sum1(weight_a_vector_ * sq(var_a_)) + sum1(weight_w_vector_ * sq(var_omega_)) +
-    //              sum1(weight_xy_vector_ * (sq(var_x_ - x_ref_) + sq(var_y_ - y_ref_))) +
-    //              sum1(weight_theta_vector_ * sq(var_theta_ - theta_ref_)) ;
 
     // 运动学约束
     double hi = config_.tf / (config_.nfe - 1);

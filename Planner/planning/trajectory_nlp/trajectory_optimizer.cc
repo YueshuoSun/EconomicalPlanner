@@ -116,7 +116,7 @@ bool TrajectoryOptimizer::IterationOptimize(const common::data::Trajectory &traj
             }
         } else {
             ROS_WARN("NLP solve failed in iteration %d. Using previous solution.", iter);
-            // 如果求解失败，尝试调整权重继续
+            return false;
         }
 
         // 为下一次迭代准备
@@ -129,7 +129,6 @@ bool TrajectoryOptimizer::IterationOptimize(const common::data::Trajectory &traj
     result = ConvertStatesToTrajectory(guess);
     is_first_ = false;
 
-    // 返回false表示没有完全收敛，但仍然返回了最佳解
     return false;
 }
 
