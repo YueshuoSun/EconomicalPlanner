@@ -51,3 +51,4 @@ qtcreator-*
 CATKIN_IGNORE
 
 .clang-format
+.vscode/
