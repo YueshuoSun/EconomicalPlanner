@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<launch>
+  <rosparam file="$(find planner_node)/config/agv_simulation_params.yaml" command="load" ns="planning"/>
+
+  <node pkg="planner_node" type="planner_node1" name="planner_node1" output="screen">
+    <rosparam command="load" file="$(find planner_node)/config/planner.yaml" ns="planning"/>
+    <param name="planning/env_file" value="$(find planner_node)/config/env.json" />
+    <!-- AGV仿真参数 -->
+    <param name="agv_simulation_enabled" value="true" />
+    <param name="num_simulated_agvs" value="3" />
+  </node>
+</launch>

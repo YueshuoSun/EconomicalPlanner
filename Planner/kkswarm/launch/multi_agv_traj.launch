@@ -1,0 +1,19 @@
+<launch>
+    <!-- 多AGV完整系统启动文件 -->
+
+    <!-- 系统参数 -->
+    <arg name="num_agvs" default="3"/>
+    <arg name="agv_ids" default="[4, 5, 20]"/>
+
+    <!-- 轨迹生成器参数 -->
+    <node name="multi_agv_trajectory_generator" pkg="planner_node" type="multi_agv_trajectory_generator" output="screen">
+        <param name="num_agvs" value="$(arg num_agvs)"/>
+        <param name="real_agv_enabled" value="false"/>
+        <!-- <param name="real_agv_velocity" value="0.01"/> -->
+        <!-- <param name="real_trajectory_dt" value="0.01"/> -->
+        <rosparam param="real_agv_ids" subst_value="false">$(arg agv_ids)</rosparam>
+    </node>
+
+    <!-- 可视化 -->
+    <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(find planner_node)/config/kkswarm.rviz"/> -->
+</launch>

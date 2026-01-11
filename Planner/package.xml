@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>planner_node</name>
+  <version>0.0.1</version>
+  <description>The economical planner_node package</description>
+
+  <maintainer email="yssun@hnu.edu.cn">Yueshuo Sun</maintainer>
+  <license>GPL-3.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>message_generation</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>visualization_msgs</build_depend>
+  <build_export_depend>roscpp</build_export_depend>
+  <build_export_depend>std_msgs</build_export_depend>
+  <build_export_depend>visualization_msgs</build_export_depend>
+  <exec_depend>message_runtime</exec_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <depend>sandbox_msgs</depend>
+
+
+  <export>
+
+  </export>
+</package>

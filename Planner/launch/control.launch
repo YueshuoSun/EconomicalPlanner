@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="server" default="10.1.1.198"/>
+
+  <include file="$(find vrpn_client_ros)/launch/sample.launch">
+    <arg name="server" value="$(arg server)"/>
+  </include>
+
+  <node pkg="nokov_localization" type="nokov_localization.py" name="nokov" />
+
+  <node pkg="chassis" type="chassis_node" name="chassis" output="screen" />
+
+  <node pkg="pure_pursuit" type="pure_pursuit_node" name="controller_3" output="screen">
+    <rosparam command="load" file="$(find pure_pursuit)/config/pure_pursuit.yaml" ns=""/>
+    <param name="target" value="5" />
+  </node>
+
+</launch>

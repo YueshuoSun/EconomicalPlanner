@@ -1,0 +1,29 @@
+<launch>
+    <!-- 多AGV完整系统启动文件 -->
+
+    <!-- 为每个AGV启动控制节点 -->
+    <!-- AGV 1 -->
+    <node pkg="planner_node" type="kkswarm_control_node" name="differential_tracker_4" output="screen">
+        <rosparam command="load" file="$(find planner_node)/kkswarm/launch/params.yaml" ns=""/>
+        <param name="robot_namespace" value="/robot_4" />
+        <param name="tracking_object" value="4" />
+        <param name="debug_output" value="true"/>
+    </node>
+
+    <!-- AGV 2 -->
+    <node pkg="planner_node" type="kkswarm_control_node" name="differential_tracker_5" output="screen">
+        <rosparam command="load" file="$(find planner_node)/kkswarm/launch/params.yaml" ns=""/>
+        <param name="robot_namespace" value="/robot_5" />
+        <param name="tracking_object" value="5" />
+    </node>
+
+    <!-- AGV 3 -->
+    <node pkg="planner_node" type="kkswarm_control_node" name="differential_tracker_20" output="screen">
+        <rosparam command="load" file="$(find planner_node)/kkswarm/launch/params.yaml" ns=""/>
+        <param name="robot_namespace" value="/robot_20" />
+        <param name="tracking_object" value="20" />
+    </node>
+
+    <!-- 可视化 -->
+    <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(find planner_node)/config/kkswarm.rviz"/> -->
+</launch>

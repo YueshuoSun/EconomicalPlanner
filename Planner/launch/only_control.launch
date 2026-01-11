@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+  <node pkg="chassis" type="chassis_node" name="chassis" output="screen" />
+
+  <node pkg="pure_pursuit" type="pure_pursuit_node" name="controller_5" output="screen">
+    <rosparam command="load" file="$(find pure_pursuit)/config/pure_pursuit.yaml" ns=""/>
+    <param name="target" value="5" />
+  </node>
+
+</launch>

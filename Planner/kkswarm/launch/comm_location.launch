@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="server" default="10.1.1.198"/>
+
+    <include file="$(find vrpn_client_ros)/launch/sample.launch">
+        <arg name="server" value="$(arg server)"/>
+    </include>
+
+    <node pkg="tcp_communication" type="tcpDriverNode" name="kkswarm_tcp"/>
+
+    <node pkg="nokov_localization" type="nokov_localization.py" name="nokov"/>
+
+    <!-- <node pkg="rviz" type="rviz" name="rviz" args="-d $(find kkswarm_local_planner)/config/move_obs.rviz"/> -->
+</launch>

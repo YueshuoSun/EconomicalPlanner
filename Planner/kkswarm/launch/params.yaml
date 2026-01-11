@@ -1,0 +1,9 @@
+# Controller gains for trajectory tracking
+k_x: 2.0      # Proportional gain for longitudinal error (remains unchanged)
+k_y: 5.0      # Increased from 5.0 for much stronger lateral correction
+k_theta: 1.5  # Increased from 1.5 for faster and more precise heading correction
+
+# Physical limits of the robot (remains unchanged)
+max_linear_speed: 0.2   # Maximum allowed linear speed in m/s
+max_angular_speed: 1.0  # Maximum allowed angular speed in rad/s
+

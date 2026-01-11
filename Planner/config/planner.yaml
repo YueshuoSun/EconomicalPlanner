@@ -1,0 +1,179 @@
+# Vehicle Parameters
+rear_hang: 0.032
+front_hang: 0.036
+wheel_base: 0.143
+length: 0.211
+width:  0.191
+vehicle_buffer: 0.02
+max_acceleration: 0.1
+max_deceleration: -0.1
+max_velocity: 0.25
+max_reverse_velocity: 0.0
+max_phi: 0.45
+min_phi: -0.45
+max_omega: 0.3
+
+# DP Path Parameters
+path_tf: 10.0
+s_coefficient: 0.9
+resample_resolution: 0.001
+w_lateral: 1.0
+w_lateral_change: 0.1
+w_obstacle: 100000000.0
+w_target: 10000.0
+collision_check_resolution: 0.03
+target_range: [0.5, 0.9]
+valid_angular: 60.0
+num_s: 12 
+num_l: 9 
+l_deviation: 0.200823
+road_half_width: 0.35
+center_line_obs_range_front: 0.20
+center_line_obs_range_rear: 0.30
+initial_next_length: 0.2
+
+## dp path new
+s_therehold: 1.0
+fine_check_resolution: 0.03
+coarse_check_resolution: 0.03
+fine_num_s: 4
+fine_num_l: 9
+coarse_num_s: 8
+coarse_num_l: 9
+ratio: 0.25
+
+## corner point
+first_seg_x: 0.02
+first_seg_y: 0.5
+second_seg_x: 0.07
+second_seg_y: 0.4
+w_safe_dis: 100.0
+
+# DP Speed Parameters
+tf: 10.0
+num_s_velocity: 100
+num_v: 27
+w_nominal_velocity: 1.0
+w_acceleration: 0.1
+v_min: 0.001
+dp_cost_max: 100000000.0
+dp_cost_acc_max: 10000.0
+min_lateral_acceleration: 0.5
+v_ratio: 0.9
+a_ratio: 1.0
+dt_resolution: 0.001
+
+s_velocity_therehold: 1.0
+fine_num_s_velocity: 60
+fine_num_v: 31
+coarse_num_s_velocity: 40
+coarse_num_v: 21
+
+# Trajectory NLP
+nfe: 101
+corridor_step: 0.01
+w_end_ratio: 5.0 
+w_opti_omega: 1.0
+w_opti_a: 1.0 
+w_opti_track: 0.1 
+w_opti_track_theta: 1.0
+w_opti_track_v: 10.0 
+corridor_max_iter: 9999999
+corridor_incremental_limit: 0.20
+
+# Frame
+suc_rolling_time: 0.1
+fail_rolling_time: 0.05
+replan_success_time: 0.5
+send_traj_duration: 0.10
+replan_send_traj_duration: 0.02
+stitch_time: 0.1
+road_ratio: 0.75
+initial_obs_index: 175
+initial_vel_index: 20
+min_s_distance: 0.5
+obs_min_l: 0.25
+obs_max_l: 0.30
+obs_length: 0.05
+obs_range: [0.5, 0.6]
+obs_num: 5
+vel_region_l: [-0.08, 0.05, -0.08, 0.02]
+vel_region_length: 0.30
+vel_region_num: 4
+vel_region_range: [0.9, 1.0]
+obs_vel_time: 10.00
+target_time: 15.00
+target_num: 2
+target_l_range: 0.30
+initial_target_index: 165
+is_not_generate_target: 0.2
+target_generate_range: [-1.5, -1.4]
+target_disappear_range: 0.1
+max_num_of_continous_failure: 4
+num_failure_of_auto_replan: 5
+stop_extend_s: 1.0
+stop_acc_ratio: 0.5
+traj_minimum_remaining_time: 1.0
+traj_minimum_remaining_time_ratio: 1.8
+rear_num: 4
+vel_move_dist: 0.03
+
+v_reduction_rate: 0.80
+regions_v_max_ratio: 0.90
+traj_v_max_ratio: 0.90
+
+# Sudden events
+sudden_obs_dis: 0.40
+sudden_obs_min_l: 0.02
+sudden_obs_max_l: 0.08
+fault_max_phi_ratio: 0.9
+extend_s_length: 1.5
+all_s_length: 1.5
+sample_accuracy: 0.05
+replan_traj_resolution: 0.01
+replan_stitch_time: 0.02
+search_carrot_step: 5
+deceleration_ratio: 0.9
+intercept_max_length: 10.0
+sudden_obs_push_l_min: 0.03
+sudden_obs_push_l_max: 0.05
+sudden_obs_generate_s: 0.6
+gene_obs_min_time: 12.0
+gene_obs_max_time: 24.0
+
+inner_points_num: 25
+
+# Map
+map_radius: 0.65
+x_first_straight: 0.65
+x_second_straight: 0.05
+y_straight: 0.5
+curve_length: 1.105
+resolution: 0.02
+
+# Experiment
+robot_id: 5
+virtual_obs_index: [55,  340, 140, 210]
+virtual_obs_l: [-0.30, -0.35, -0.30, -0.30]
+virtual_obs_length: 0.005
+
+shutdown_mileage_threshold: 7.0
+algorithm_id: 1
+
+start_x: -0.05
+start_y: 1.85
+start_theta: -3.1
+
+min_obs_length: 0.03
+max_obs_length: 0.05
+min_obs_width: 0.03
+max_obs_width: 0.05
+random_seed: 1021  # Random seed for obstacle generation
+max_lateral_offset: 0.25
+min_lateral_offset: 0.1
+max_heading_deviation_deg: 10.0  # Maximum heading deviation in degrees
+lateral_dead_zone_min: 0.18
+lateral_safe_zone_max: 0.20
+
+real_agv_enabled: false
+agv_simulation_enabled: false
