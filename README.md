@@ -63,6 +63,6 @@ GPL-3.0
 
 ## Citation
 
-Copyright (C) 2026 Yueshuo Sun and Bai Li. This source code is associated with the following publication. If you use this code in your research or build upon it in any new publications, please cite our paper:
+Copyright (C) 2026 Bai Li and Yueshuo Sun. This source code is associated with the following publication. If you use this code in your research or build upon it in any new publications, please cite our paper:
 
 > Yueshuo Sun, Bai Li, "Economical Motion Planning for On-Road Autonomous Driving with Distance-Sensitive Spatio-Temporal Resolutions," *Machines*, vol. 14, no. 2, article 200, 2026. DOI: [https://doi.org/10.3390/machines14020200](https://doi.org/10.3390/machines14020200)
